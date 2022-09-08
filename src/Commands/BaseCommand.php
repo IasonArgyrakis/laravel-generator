@@ -36,6 +36,27 @@ use Symfony\Component\VarExporter\VarExporter;
 
 class BaseCommand extends Command
 {
+
+    private static array $_DB_TYPES = ["string", "integer", "boolean", "text", "double", "date"];
+
+    //https://infyom.com/open-source/laravelgenerator/docs/fields-input-guide
+    private static array $_HTML_TYPES = [
+        "string" => ["text", "email", "textarea", "password", "file"],
+        "text" => ["text", "email", "textarea", "password"],
+        "integer" => ["text", "textarea", "password"],
+        "double" => ["text", "textarea", "number"],
+        "date" => ["date"],
+    ];
+
+
+    private static array $_OPTION_TYPES = [
+        'NO' => "NO Options",
+        's' => 'to make field non - searchable',
+        'f' => 'to make field non - fillable',
+        'if' => 'to skip field from being asked in form',
+        'ii' => 'to skip field from being displayed in index view',
+        "iv" => 'to skip field from being displayed in all views'
+    ];
     public GeneratorConfig $config;
 
     public Composer $composer;
@@ -158,7 +179,7 @@ class BaseCommand extends Command
                 $requestFromConsole = (php_sapi_name() == 'cli');
                 if ($this->option('jsonFromGUI') && $requestFromConsole) {
                     $this->runMigration();
-                } elseif ($requestFromConsole && $this->confirm(infy_nl().'Do you want to migrate database? [y|N]', false)) {
+                } elseif ($requestFromConsole && $this->confirm(infy_nl() . 'Do you want to migrate database? [y|N]', false)) {
                     $this->runMigration();
                 }
             }
@@ -186,7 +207,7 @@ class BaseCommand extends Command
     public function isSkip($skip): bool
     {
         if ($this->option('skip')) {
-            return in_array($skip, (array) $this->option('skip'));
+            return in_array($skip, (array)$this->option('skip'));
         }
 
         return false;
@@ -203,34 +224,34 @@ class BaseCommand extends Command
 
         foreach ($this->config->fields as $field) {
             $fileFields[] = [
-                'name'        => $field->name,
-                'dbType'      => $field->dbType,
-                'htmlType'    => $field->htmlType,
+                'name' => $field->name,
+                'dbType' => $field->dbType,
+                'htmlType' => $field->htmlType,
                 'validations' => $field->validations,
-                'searchable'  => $field->isSearchable,
-                'fillable'    => $field->isFillable,
-                'primary'     => $field->isPrimary,
-                'inForm'      => $field->inForm,
-                'inIndex'     => $field->inIndex,
-                'inView'      => $field->inView,
+                'searchable' => $field->isSearchable,
+                'fillable' => $field->isFillable,
+                'primary' => $field->isPrimary,
+                'inForm' => $field->inForm,
+                'inIndex' => $field->inIndex,
+                'inView' => $field->inView,
             ];
         }
 
         foreach ($this->config->relations as $relation) {
             $fileFields[] = [
-                'type'     => 'relation',
-                'relation' => $relation->type.','.implode(',', $relation->inputs),
+                'type' => 'relation',
+                'relation' => $relation->type . ',' . implode(',', $relation->inputs),
             ];
         }
 
         $path = config('laravel_generator.path.schema_files', resource_path('model_schemas/'));
 
-        $fileName = $this->config->modelNames->name.'.json';
+        $fileName = $this->config->modelNames->name . '.json';
 
-        if (file_exists($path.$fileName) && !$this->confirmOverwrite($fileName)) {
+        if (file_exists($path . $fileName) && !$this->confirmOverwrite($fileName)) {
             return;
         }
-        g_filesystem()->createFile($path.$fileName, json_encode($fileFields, JSON_PRETTY_PRINT));
+        g_filesystem()->createFile($path . $fileName, json_encode($fileFields, JSON_PRETTY_PRINT));
         $this->comment("\nSchema File saved: ");
         $this->info($fileName);
     }
@@ -239,8 +260,8 @@ class BaseCommand extends Command
     {
         $locales = [
             'singular' => $this->config->modelNames->name,
-            'plural'   => $this->config->modelNames->plural,
-            'fields'   => [],
+            'plural' => $this->config->modelNames->plural,
+            'fields' => [],
         ];
 
         foreach ($this->config->fields as $field) {
@@ -249,16 +270,16 @@ class BaseCommand extends Command
 
         $path = lang_path('en/models/');
 
-        $fileName = $this->config->modelNames->snakePlural.'.php';
+        $fileName = $this->config->modelNames->snakePlural . '.php';
 
-        if (file_exists($path.$fileName) && !$this->confirmOverwrite($fileName)) {
+        if (file_exists($path . $fileName) && !$this->confirmOverwrite($fileName)) {
             return;
         }
 
         $locales = VarExporter::export($locales);
-        $end = ';'.infy_nl();
-        $content = "<?php\n\nreturn ".$locales.$end;
-        g_filesystem()->createFile($path.$fileName, $content);
+        $end = ';' . infy_nl();
+        $content = "<?php\n\nreturn " . $locales . $end;
+        g_filesystem()->createFile($path . $fileName, $content);
         $this->comment("\nModel Locale File saved.");
         $this->info($fileName);
     }
@@ -266,7 +287,7 @@ class BaseCommand extends Command
     protected function confirmOverwrite(string $fileName, string $prompt = ''): bool
     {
         $prompt = (empty($prompt))
-            ? $fileName.' already exists. Do you want to overwrite it? [y|N]'
+            ? $fileName . ' already exists. Do you want to overwrite it? [y|N]'
             : $prompt;
 
         return $this->confirm($prompt, false);
@@ -342,7 +363,63 @@ class BaseCommand extends Command
         $this->addPrimaryKey();
 
         while (true) {
-            $fieldInputStr = $this->ask('Field: (name db_type html_type options)', '');
+
+
+            $property_name = $this->ask("What is the name of the property?(type 'exit' to stop)");
+
+            if ($property_name == "exit") {
+                break;
+            }
+
+            $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
+
+            $html_type = $this->choice("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
+
+
+            foreach (self::$_OPTION_TYPES as $key => $value) {
+
+                $this->line("$key - $value");
+
+            }
+
+            $options_selected = $this->choice(
+                'Options? (Mulitiple)',
+                array_keys(self::$_OPTION_TYPES),
+                0,
+                $maxAttempts = null,
+                $allowMultipleSelections = true
+            );
+
+
+            if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+
+                if ($this->confirm("you cant have NO and Options remove NO ? ", true)) {
+
+                    $options = \Arr::join($options_selected, ",");
+                    $options = str_replace(",NO", "", $options);
+                    $options = str_replace("NO,", "", $options);
+
+                } else {
+                    continue;
+                }
+
+
+            } else {
+                $options = \Arr::join($options_selected, ",");
+                $options = str_replace("NO", "", $options);
+            }
+
+
+            $fieldInputStr = $property_name . " " . $db_type . " " . $html_type . " " . $options;
+
+            if ($this->confirm("Is this correct? " . $fieldInputStr, true)) {
+
+            } else {
+                continue;
+            }
+
+
+            //$fieldInputStr = $this->ask('Field: (name db_type html_type options)', '');
 
             if (empty($fieldInputStr) || $fieldInputStr == false || $fieldInputStr == 'exit') {
                 break;
@@ -352,6 +429,8 @@ class BaseCommand extends Command
                 $this->error('Invalid Input. Try again');
                 continue;
             }
+
+            //@toDO validation
 
             $validations = $this->ask('Enter validations: ', false);
             $validations = ($validations == false) ? '' : $validations;
@@ -418,7 +497,7 @@ class BaseCommand extends Command
                 'laravel_generator.path.schema_files',
                 resource_path('model_schemas/')
             );
-            $filePath = $schemaFileDirector.$fieldsFileValue;
+            $filePath = $schemaFileDirector . $fieldsFileValue;
         }
 
         if (!file_exists($filePath)) {
@@ -495,7 +574,7 @@ class BaseCommand extends Command
         return [
             'modelName' => $this->config->modelNames->name,
             'tableName' => $this->config->tableName,
-            'nsModel'   => $this->config->namespaces->model,
+            'nsModel' => $this->config->namespaces->model,
         ];
     }
 
