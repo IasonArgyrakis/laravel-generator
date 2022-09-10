@@ -1,3 +1,36 @@
+## Install
+---
+
+Add to `composer.json`
+```
+"require": {
+     "infyomlabs/laravel-generator": "^5.0",
+ }  
+ ```
+ 
+ run `composer update` = then => `php artisan infyom:publish`
+ 
+ replace the **contents** of the  /vendor file `./vendor/infyomlabs/laravel-generator/src/Commands/BaseCommand.php`
+ 
+ with [`https://github.com/IasonArgyrakis/laravel-generator/blob/develop/src/Commands/BaseCommand.php`](https://github.com/IasonArgyrakis/laravel-generator/blob/develop/src/Commands/BaseCommand.php)
+ 
+ ## Usage
+---
+ 
+### Define model endpoints 
+ 
+ `php artisan infyom:api YourModel` *tip define the model with uppercase 
+ 
+ ### Undo model endpoints with 
+ 
+ `php artisan infyom:rollback YourModel api` to undo file creation 
+ 
+ 
+ 
+ 
+
+
+
 <h1 align="center"><img src="https://assets.infyom.com/open-source/infyom-logo.png" alt="InfyOm"></h1>
 
 InfyOm Laravel Generator
