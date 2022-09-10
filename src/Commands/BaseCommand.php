@@ -43,8 +43,8 @@ class BaseCommand extends Command
     private static array $_HTML_TYPES = [
         "string" => ["text", "email", "textarea", "password", "file"],
         "text" => ["text", "email", "textarea", "password"],
-        "integer" => ["text", "textarea", "password"],
-        "double" => ["text", "textarea", "number"],
+        "integer" => ["text", "number", "textarea", "password"],
+        "double" => ["text", "number", "textarea"],
         "date" => ["date"],
     ];
 
@@ -363,6 +363,9 @@ class BaseCommand extends Command
         $this->addPrimaryKey();
 
         while (true) {
+            $previous_property="";
+            $relation = '';
+            $options = "";
 
 
             $property_name = $this->ask("What is the name of the property?(type 'exit' to stop)");
@@ -371,55 +374,99 @@ class BaseCommand extends Command
                 break;
             }
 
-            $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
+            $property_name_has_definition = Str::contains($property_name, ':');
+            if ($property_name_has_definition) {
 
-            $html_type = $this->choice("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
+                $previous_property_name=$property_name;
 
+                $property_name_has_belongsTo = Str::contains($property_name, ':belongsTo');
+                if ($property_name_has_belongsTo) {
+                    $property_name = str_replace(":belongsTo", "", $property_name);
+                    //$relativeModel
+                    $relation_array = ["mt1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
+                }
 
-            foreach (self::$_OPTION_TYPES as $key => $value) {
+                $property_name_has_hasMany = Str::contains($property_name, ':hasMany');
+                if ($property_name_has_hasMany) {
+                    $property_name = str_replace(":hasMany", "", $property_name);
+                    $relation_array = ["1tm", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
+                }
 
-                $this->line("$key - $value");
+                $property_name_has_hasOne = Str::contains($property_name, ':hasOne');
+                if ($property_name_has_hasOne) {
+                    $property_name = str_replace(":hasOne", "", $property_name);
+                    $relation_array = ["1t1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
+                }
 
+                $property_name_has_string = Str::contains($property_name, ':str');
+                if ($property_name_has_string) {
+                    $property_name = str_replace(":str", "", $property_name);
+                    $db_type="string";
+                    $html_type = "text";
+
+                }
+
+                $property_name_has_string = Str::contains($property_name, ':int');
+                if ($property_name_has_string) {
+                    $property_name = str_replace(":int", "", $property_name);
+                    $db_type=self::$_DB_TYPES[1];//integer
+                    $html_type = "text";
+                }
+                $property_name_has_string = Str::contains($property_name, ':bool');
+                if ($property_name_has_string) {
+                    $property_name = str_replace(":bool", "", $property_name);
+                    $db_type=self::$_DB_TYPES[2];//boolean
+                    $html_type = "text";
+                }
+
+                $validations="required";
             }
 
-            $options_selected = $this->choice(
-                'Options? (Mulitiple)',
-                array_keys(self::$_OPTION_TYPES),
-                0,
-                $maxAttempts = null,
-                $allowMultipleSelections = true
-            );
+            if ($property_name_has_hasOne || $property_name_has_hasMany || $property_name_has_belongsTo) {
+                $relation = \Arr::join($relation_array, ",");
+                $db_type = "integer:unsigned:foreign," . $property_name . "s,id";
+                $html_type = "text";
+
+            }else {
+                $previous_property_name=$property_name;
+
+                $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
+
+                $html_type = $this->choice("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
 
 
-            if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+                foreach (self::$_OPTION_TYPES as $key => $value) {
 
-                if ($this->confirm("you cant have NO and Options remove NO ? ", true)) {
+                    $this->line("$key - $value");
+
+                }
+
+                $options_selected = $this->choice(
+                    'Options? (Mulitiple)',
+                    array_keys(self::$_OPTION_TYPES),
+                    0,
+                    $maxAttempts = null,
+                    $allowMultipleSelections = true
+                );
+
+
+                if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+
 
                     $options = \Arr::join($options_selected, ",");
                     $options = str_replace(",NO", "", $options);
                     $options = str_replace("NO,", "", $options);
 
+
                 } else {
-                    continue;
+                    $options = \Arr::join($options_selected, ",");
+                    $options = str_replace("NO", "", $options);
                 }
-
-
-            } else {
-                $options = \Arr::join($options_selected, ",");
-                $options = str_replace("NO", "", $options);
             }
 
 
             $fieldInputStr = $property_name . " " . $db_type . " " . $html_type . " " . $options;
 
-            if ($this->confirm("Is this correct? " . $fieldInputStr, true)) {
-
-            } else {
-                continue;
-            }
-
-
-            //$fieldInputStr = $this->ask('Field: (name db_type html_type options)', '');
 
             if (empty($fieldInputStr) || $fieldInputStr == false || $fieldInputStr == 'exit') {
                 break;
@@ -430,15 +477,17 @@ class BaseCommand extends Command
                 continue;
             }
 
-            //@toDO validation
 
-            $validations = $this->ask('Enter validations: ', false);
-            $validations = ($validations == false) ? '' : $validations;
+            if(!isset($validations)) {
 
+                $validations = $this->ask('Enter validations: ', 'required');
+                $validations = ($validations == false) ? '' : $validations;
+            }
             if ($this->option('relations')) {
+
                 $relation = $this->ask('Enter relationship (Leave Blank to skip):', false);
             } else {
-                $relation = '';
+
             }
 
             $this->config->fields[] = GeneratorField::parseFieldFromConsoleInput(
@@ -449,11 +498,15 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
+            $this->info("Previous Property:". $previous_property_name . " " . $db_type . " " . $html_type . " " . $options);
         }
 
         if (config('laravel_generator.timestamps.enabled', true)) {
             $this->addTimestamps();
         }
+
+
+
     }
 
     private function addPrimaryKey()
@@ -597,4 +650,5 @@ class BaseCommand extends Command
     {
         event(new GeneratorFileDeleted($commandType, $this->prepareEventsData()));
     }
+    
 }
