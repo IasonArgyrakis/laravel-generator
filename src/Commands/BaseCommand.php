@@ -361,26 +361,31 @@ class BaseCommand extends Command
         $this->info('Enter "exit" to finish');
 
         $this->addPrimaryKey();
-
+        $previous_properties="";
         while (true) {
-            $previous_property="";
+
             $relation = '';
             $options = "";
 
 
-            $property_name = $this->ask("What is the name of the property?(type 'exit' to stop)");
+            $property_name = $this->anticipate("What is the name of the property?(type '.exit' to stop)",['.exit',".hints.md",":belongsTo"]);
 
-            if ($property_name == "exit") {
+            if ($property_name == ".exit") {
                 break;
+            }
+            if ($property_name == ".hints.md") {
+
             }
 
             $property_name_has_definition = Str::contains($property_name, ':');
             if ($property_name_has_definition) {
 
                 $previous_property_name=$property_name;
+                $validations="required";
 
                 $property_name_has_belongsTo = Str::contains($property_name, ':belongsTo');
                 if ($property_name_has_belongsTo) {
+                    $validations.="|numeric";
                     $property_name = str_replace(":belongsTo", "", $property_name);
                     //$relativeModel
                     $relation_array = ["mt1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
@@ -394,40 +399,49 @@ class BaseCommand extends Command
 
                 $property_name_has_hasOne = Str::contains($property_name, ':hasOne');
                 if ($property_name_has_hasOne) {
+                    $validations.="|numeric";
                     $property_name = str_replace(":hasOne", "", $property_name);
                     $relation_array = ["1t1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
                 }
 
-                $property_name_has_string = Str::contains($property_name, ':str');
-                if ($property_name_has_string) {
+                $property_name_has_str = Str::contains($property_name, ':str');
+                if ($property_name_has_str) {
                     $property_name = str_replace(":str", "", $property_name);
                     $db_type="string";
                     $html_type = "text";
 
                 }
 
-                $property_name_has_string = Str::contains($property_name, ':int');
-                if ($property_name_has_string) {
+                $property_name_has_int = Str::contains($property_name, ':int');
+                if ($property_name_has_int) {
                     $property_name = str_replace(":int", "", $property_name);
                     $db_type=self::$_DB_TYPES[1];//integer
                     $html_type = "text";
                 }
-                $property_name_has_string = Str::contains($property_name, ':bool');
-                if ($property_name_has_string) {
+
+                $property_name_has_bool = Str::contains($property_name, ':bool');
+                if ($property_name_has_bool) {
                     $property_name = str_replace(":bool", "", $property_name);
                     $db_type=self::$_DB_TYPES[2];//boolean
                     $html_type = "text";
                 }
 
-                $validations="required";
+
+
             }
 
             if ($property_name_has_hasOne || $property_name_has_hasMany || $property_name_has_belongsTo) {
                 $relation = \Arr::join($relation_array, ",");
-                $db_type = "integer:unsigned:foreign," . $property_name . "s,id";
+                $db_type = "integer:unsigned:foreignId," . $property_name . "s,id";
                 $html_type = "text";
 
-            }else {
+            }
+
+
+           if($property_name_has_definition){
+
+           }
+            else {
                 $previous_property_name=$property_name;
 
                 $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
@@ -498,7 +512,8 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
-            $this->info("Previous Property:". $previous_property_name . " " . $db_type . " " . $html_type . " " . $options);
+            $previous_properties.="\n -  ".$previous_property_name . " " . $db_type . " " . $html_type . " " . $options;
+            $this->info("Previous Properties:".$previous_properties);
         }
 
         if (config('laravel_generator.timestamps.enabled', true)) {
@@ -650,5 +665,5 @@ class BaseCommand extends Command
     {
         event(new GeneratorFileDeleted($commandType, $this->prepareEventsData()));
     }
-    
+
 }
