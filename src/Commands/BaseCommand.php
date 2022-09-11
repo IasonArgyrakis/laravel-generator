@@ -361,14 +361,23 @@ class BaseCommand extends Command
         $this->info('Enter "exit" to finish');
 
         $this->addPrimaryKey();
-        $previous_properties="";
+        $previous_properties = "";
         while (true) {
 
             $relation = '';
             $options = "";
+            $validations = "required";
+
+            $autoComplete_options = [
+                '.exit',
+                ".hints.md",
+                ":hasMany-",
+                ":belongsTo-",
+                ":hasOne-"
+            ];
 
 
-            $property_name = $this->anticipate("What is the name of the property?(type '.exit' to stop)",['.exit',".hints.md",":belongsTo"]);
+            $property_name = $this->anticipate("What is the name of the property?(type '.exit' to stop)", $autoComplete_options);
 
             if ($property_name == ".exit") {
                 break;
@@ -377,104 +386,86 @@ class BaseCommand extends Command
 
             }
 
-            $property_name_has_definition = Str::contains($property_name, ':');
-            if ($property_name_has_definition) {
-
-                $previous_property_name=$property_name;
-                $validations="required";
-
-                $property_name_has_belongsTo = Str::contains($property_name, ':belongsTo');
-                if ($property_name_has_belongsTo) {
-                    $validations.="|numeric";
-                    $property_name = str_replace(":belongsTo", "", $property_name);
-                    //$relativeModel
-                    $relation_array = ["mt1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
-                }
-
-                $property_name_has_hasMany = Str::contains($property_name, ':hasMany');
-                if ($property_name_has_hasMany) {
-                    $property_name = str_replace(":hasMany", "", $property_name);
-                    $relation_array = ["1tm", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
-                }
-
-                $property_name_has_hasOne = Str::contains($property_name, ':hasOne');
-                if ($property_name_has_hasOne) {
-                    $validations.="|numeric";
-                    $property_name = str_replace(":hasOne", "", $property_name);
-                    $relation_array = ["1t1", ucfirst($property_name), lcfirst($property_name) . "_id", "id"];
-                }
-
-                $property_name_has_str = Str::contains($property_name, ':str');
-                if ($property_name_has_str) {
-                    $property_name = str_replace(":str", "", $property_name);
-                    $db_type="string";
-                    $html_type = "text";
-
-                }
-
-                $property_name_has_int = Str::contains($property_name, ':int');
-                if ($property_name_has_int) {
-                    $property_name = str_replace(":int", "", $property_name);
-                    $db_type=self::$_DB_TYPES[1];//integer
-                    $html_type = "text";
-                }
-
-                $property_name_has_bool = Str::contains($property_name, ':bool');
-                if ($property_name_has_bool) {
-                    $property_name = str_replace(":bool", "", $property_name);
-                    $db_type=self::$_DB_TYPES[2];//boolean
-                    $html_type = "text";
-                }
-
-
-
+            $property_name_has_complex_definition = Str::contains($property_name, '-');
+            if ($property_name_has_complex_definition) {
+                $validations .= "|numeric";
+                $property_info = $this->generatePropertyNameAndRelation($property_name);
+                $property_name = $property_info[0];
+                $db_type = "foreignId:constrained";
+                $html_type = "number";
+                $relation = $property_info[1];
             }
 
-            if ($property_name_has_hasOne || $property_name_has_hasMany || $property_name_has_belongsTo) {
-                $relation = \Arr::join($relation_array, ",");
-                $db_type = "integer:unsigned:foreignId," . $property_name . "s,id";
+            $property_name_has_str = Str::contains($property_name, ':str');
+            if ($property_name_has_str) {
+                $property_name = str_replace(":str", "", $property_name);
+                $db_type = "string";
                 $html_type = "text";
 
+
+            }
+
+            $property_name_has_int = Str::contains($property_name, ':int');
+            if ($property_name_has_int) {
+                $validations .= "|numeric";
+                $property_name = str_replace(":int", "", $property_name);
+                $db_type = self::$_DB_TYPES[1];//integer
+                $html_type = "text";
+            }
+
+            $property_name_has_bool = Str::contains($property_name, ':bool');
+            if ($property_name_has_bool) {
+                $property_name = str_replace(":bool", "", $property_name);
+                $db_type = self::$_DB_TYPES[2];//boolean
+                $html_type = "text";
             }
 
 
-           if($property_name_has_definition){
 
-           }
-            else {
-                $previous_property_name=$property_name;
-
-                $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
-
-                $html_type = $this->choice("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
+            $previous_property_name = $property_name;
 
 
-                foreach (self::$_OPTION_TYPES as $key => $value) {
-
-                    $this->line("$key - $value");
-
-                }
-
-                $options_selected = $this->choice(
-                    'Options? (Mulitiple)',
-                    array_keys(self::$_OPTION_TYPES),
-                    0,
-                    $maxAttempts = null,
-                    $allowMultipleSelections = true
-                );
+            if ($property_name_has_complex_definition||$property_name_has_str||$property_name_has_int||$property_name_has_bool) {
 
 
-                if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+            } else {
+                $previous_property_name = $property_name;
+
+                $db_type = $this->askWithCompletion("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
+
+                if (array_key_exists($db_type, self::$_HTML_TYPES)) {
+                    $html_type = $this->askWithCompletion("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
 
 
-                    $options = \Arr::join($options_selected, ",");
-                    $options = str_replace(",NO", "", $options);
-                    $options = str_replace("NO,", "", $options);
+                    foreach (self::$_OPTION_TYPES as $key => $value) {
+
+                        $this->line("$key - $value");
+
+                    }
+
+                    $options_selected = $this->choice(
+                        'Options? (Mulitiple)',
+                        array_keys(self::$_OPTION_TYPES),
+                        0,
+                        $maxAttempts = null,
+                        $allowMultipleSelections = true
+                    );
 
 
+                    if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+
+
+                        $options = \Arr::join($options_selected, ",");
+                        $options = str_replace(",NO", "", $options);
+                        $options = str_replace("NO,", "", $options);
+
+
+                    } else {
+                        $options = \Arr::join($options_selected, ",");
+                        $options = str_replace("NO", "", $options);
+                    }
                 } else {
-                    $options = \Arr::join($options_selected, ",");
-                    $options = str_replace("NO", "", $options);
+                    $html_type = "text";
                 }
             }
 
@@ -492,7 +483,7 @@ class BaseCommand extends Command
             }
 
 
-            if(!isset($validations)) {
+            if (!isset($validations)) {
 
                 $validations = $this->ask('Enter validations: ', 'required');
                 $validations = ($validations == false) ? '' : $validations;
@@ -512,14 +503,57 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
-            $previous_properties.="\n -  ".$previous_property_name . " " . $db_type . " " . $html_type . " " . $options;
-            $this->info("Previous Properties:".$previous_properties);
+            $previous_properties .= "\n -  " . $previous_property_name . " " . $db_type . " " . $html_type . " " . $options;
+            $this->info("Previous Properties:" . $previous_properties);
         }
 
         if (config('laravel_generator.timestamps.enabled', true)) {
             $this->addTimestamps();
         }
 
+
+    }
+
+    /**
+     * @param $property_name_raw
+     * @return array|null [$property_name,$relation]
+     */
+    public function generatePropertyNameAndRelation($property_name_raw): ?array
+    {
+        $relationships_map = [
+            ":belongsTo" => "mt1",
+            ":belongsToMany" => "mtm",
+            ":hasMany" => "1tm"
+        ];
+        //converts relationsship type
+        $property_name_array = explode("-", $property_name_raw);
+        $this->info(var_dump($property_name_array));
+        $this->info(json_encode($property_name_array[1]));
+        $relationships_map_key = $property_name_array[0];
+        $property_name = $property_name_array[1];
+
+
+        if (array_key_exists($relationships_map_key, $relationships_map)) {
+
+            $relationship_type = $relationships_map[$relationships_map_key];
+
+            $field_name = lcfirst($property_name) . "_id";
+
+            $model_name = ucfirst($property_name);
+
+            $relation_array = [$relationship_type, $model_name, $field_name, "id"];
+
+            $relation = \Arr::join($relation_array, ",");
+
+            $outcome = [$field_name, $relation];
+
+            $this->info(json_encode($outcome));
+
+            return $outcome;
+
+        } else {
+            return null;
+        }
 
 
     }
