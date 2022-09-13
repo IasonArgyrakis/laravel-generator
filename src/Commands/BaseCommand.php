@@ -390,10 +390,11 @@ class BaseCommand extends Command
             if ($property_name_has_complex_definition) {
                 $validations .= "|numeric";
                 $property_info = $this->generatePropertyNameAndRelation($property_name);
-                $property_name = $property_info[0];
+                $validations .= $property_info['foreign_validatiator'];
+                $property_name = $property_info['field_name'];
                 $db_type = "foreignId:constrained";
                 $html_type = "number";
-                $relation = $property_info[1];
+                $relation = $property_info['relation'];
             }
 
             $property_name_has_str = Str::contains($property_name, ':str');
@@ -421,11 +422,10 @@ class BaseCommand extends Command
             }
 
 
-
             $previous_property_name = $property_name;
 
 
-            if ($property_name_has_complex_definition||$property_name_has_str||$property_name_has_int||$property_name_has_bool) {
+            if ($property_name_has_complex_definition || $property_name_has_str || $property_name_has_int || $property_name_has_bool) {
 
 
             } else {
@@ -534,7 +534,7 @@ class BaseCommand extends Command
 
 
         if (array_key_exists($relationships_map_key, $relationships_map)) {
-
+            $foreign_validatiator='';
             $relationship_type = $relationships_map[$relationships_map_key];
 
             $field_name = lcfirst($property_name) . "_id";
@@ -544,8 +544,13 @@ class BaseCommand extends Command
             $relation_array = [$relationship_type, $model_name, $field_name, "id"];
 
             $relation = \Arr::join($relation_array, ",");
+            if ($relationship_type === $relationships_map[":belongsTo"]) {
+                $foreign_validatiator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
+            }
 
-            $outcome = [$field_name, $relation];
+
+
+            $outcome = compact('field_name', 'relation', 'foreign_validatiator');
 
             $this->info(json_encode($outcome));
 
