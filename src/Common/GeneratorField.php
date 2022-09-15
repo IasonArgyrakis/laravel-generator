@@ -12,8 +12,58 @@ class GeneratorField
     public array $dbTypeParams = [];
     public array $dbExtraFunctions = [];
 
+    public const DB_OPTION_TYPES = [
+        'NO' => "NO Options",
+        's' => 'to make field non - searchable',
+        'f' => 'to make field non - fillable',
+        'if' => 'to skip field from being asked in form',
+        'ii' => 'to skip field from being displayed in index view',
+        "iv" => 'to skip field from being displayed in all views'
+    ];
+
     public string $htmlType = '';
     public array $htmlValues = [];
+
+    //Array Containing Compatible db and html types
+    public const HTML_TYPE_SUGESTIONS = [
+        //db        //html types
+        "string" => [
+            "default" => "text",
+            "text" => "text",
+            "email" => "email",
+            "textarea" => "textarea",
+            "password" => "password",
+            "file" => "file"
+        ],
+        "text" => [
+            "default" => "text",
+            "text" => "text",
+            "email" => "email",
+            "textarea" => "textarea",
+            "password" => "password",
+        ],
+        "integer" => [
+            "default" => "number",
+            "text" => "text",
+            "number" => "number",
+            "textarea" => "textarea",
+            "password" => "password",
+        ],
+        "double" => [
+            "default" => "number",
+            "text" => "text",
+            "number" => "number",
+            "textarea" => "textarea",
+        ],
+        "date" => [
+            "default" => "date",
+            "date" => "date"
+        ],
+        "foreignId:constrained" => [
+            "default" => "number",
+            "number" => "number",
+        ],
+    ];
 
     public string $description;
     public string $validations = '';
@@ -40,11 +90,11 @@ class GeneratorField
         }
 
         $dbInputArr = explode(':', $dbInput);
-        $dbType = (string) array_shift($dbInputArr);
+        $dbType = (string)array_shift($dbInputArr);
 
         if (Str::contains($dbType, ',')) {
             $dbTypeArr = explode(',', $dbType);
-            $this->dbType = (string) array_shift($dbTypeArr);
+            $this->dbType = (string)array_shift($dbTypeArr);
             $this->dbTypeParams = $dbTypeArr;
         } else {
             $this->dbType = $dbType;
@@ -75,7 +125,7 @@ class GeneratorField
         }
 
         $htmlInputArr = explode(':', $htmlInput);
-        $this->htmlType = (string) array_shift($htmlInputArr);
+        $this->htmlType = (string)array_shift($htmlInputArr);
         $this->htmlValues = explode(',', implode(':', $htmlInputArr));
     }
 
@@ -112,7 +162,7 @@ class GeneratorField
     protected function prepareMigrationText()
     {
         $this->migrationText = '$table->';
-        $this->migrationText .= $this->dbType."('".$this->name."'";
+        $this->migrationText .= $this->dbType . "('" . $this->name . "'";
 
         if (!count($this->dbTypeParams) and !count($this->dbExtraFunctions)) {
             $this->migrationText .= ');';
@@ -130,7 +180,7 @@ class GeneratorField
 //            $this->migrationText .= ']';
 //        }
             foreach ($this->dbTypeParams as $dbTypeParam) {
-                $this->migrationText .= ', '.$dbTypeParam;
+                $this->migrationText .= ', ' . $dbTypeParam;
             }
         }
 
@@ -145,11 +195,11 @@ class GeneratorField
         $this->foreignKeyText = '';
         foreach ($this->dbExtraFunctions as $dbExtraFunction) {
             $dbExtraFunctionArr = explode(',', $dbExtraFunction);
-            $functionName = (string) array_shift($dbExtraFunctionArr);
+            $functionName = (string)array_shift($dbExtraFunctionArr);
             if ($functionName === 'foreign') {
                 $foreignTable = array_shift($dbExtraFunctionArr);
                 $foreignField = array_shift($dbExtraFunctionArr);
-                $this->foreignKeyText .= "\$table->foreign('".$this->name."')->references('".$foreignField."')->on('".$foreignTable."')";
+                $this->foreignKeyText .= "\$table->foreign('" . $this->name . "')->references('" . $foreignField . "')->on('" . $foreignTable . "')";
                 if (count($dbExtraFunctionArr)) {
                     $cascade = array_shift($dbExtraFunctionArr);
                     if ($cascade === 'cascade') {
@@ -158,7 +208,7 @@ class GeneratorField
                 }
                 $this->foreignKeyText .= ';';
             } else {
-                $this->migrationText .= '->'.$functionName;
+                $this->migrationText .= '->' . $functionName;
                 $this->migrationText .= '(';
                 $this->migrationText .= implode(', ', $dbExtraFunctionArr);
                 $this->migrationText .= ')';
@@ -234,7 +284,7 @@ class GeneratorField
     public function variables(): array
     {
         return [
-            'fieldName'  => $this->name,
+            'fieldName' => $this->name,
             'fieldTitle' => $this->getTitle(),
         ];
     }

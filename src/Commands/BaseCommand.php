@@ -36,27 +36,6 @@ use Symfony\Component\VarExporter\VarExporter;
 
 class BaseCommand extends Command
 {
-
-    private static array $_DB_TYPES = ["string", "integer", "boolean", "text", "double", "date"];
-
-    //https://infyom.com/open-source/laravelgenerator/docs/fields-input-guide
-    private static array $_HTML_TYPES = [
-        "string" => ["text", "email", "textarea", "password", "file"],
-        "text" => ["text", "email", "textarea", "password"],
-        "integer" => ["text", "textarea", "password"],
-        "double" => ["text", "textarea", "number"],
-        "date" => ["date"],
-    ];
-
-
-    private static array $_OPTION_TYPES = [
-        'NO' => "NO Options",
-        's' => 'to make field non - searchable',
-        'f' => 'to make field non - fillable',
-        'if' => 'to skip field from being asked in form',
-        'ii' => 'to skip field from being displayed in index view',
-        "iv" => 'to skip field from being displayed in all views'
-    ];
     public GeneratorConfig $config;
 
     public Composer $composer;
@@ -361,65 +340,150 @@ class BaseCommand extends Command
         $this->info('Enter "exit" to finish');
 
         $this->addPrimaryKey();
-
+        $previous_properties = "";
         while (true) {
 
+            $relation = '';
+            $options = "";
+            $validations = "required";
 
-            $property_name = $this->ask("What is the name of the property?(type 'exit' to stop)");
+            $autoComplete_options = [
+                ".hints",
+                ":hasMany-",
+                ":belongsTo-",
+                ":hasOne-",
+                ":str:",
+                ":int:",
+                ":bool:",
+                '.exit',
 
-            if ($property_name == "exit") {
+            ];
+
+            $text_color = [
+                "yellow" => "\033[33m",
+                "blue" => "\033[34m",
+                "reset_color" => "\033[0m",
+            ];
+
+            $hints = [
+                ".hints" => "All sugestions start with {$text_color['blue']}:{$text_color['reset_color']}",
+                ":belongsTo-" => "{$text_color['blue']}:belongsTo-{$text_color['reset_color']}{$text_color['yellow']}author {$text_color['reset_color']} results in a model property {$text_color['yellow']}author_id{$text_color['reset_color']} that must exist AND be an int in the authors table ",
+                ":hasOne-" => "{$text_color['blue']}:hasOne-{$text_color['reset_color']}{$text_color['yellow']}author {$text_color['reset_color']} results in a model property {$text_color['yellow']}author_id{$text_color['reset_color']} that must exist in the authors table ",
+                ":str:" => "{$text_color['blue']}:str:{$text_color['reset_color']}{$text_color['yellow']}name{$text_color['reset_color']} results in a model property {$text_color['yellow']}name{$text_color['reset_color']} and that must be a string",
+                ":int:" => "{$text_color['blue']}:int:{$text_color['reset_color']}{$text_color['yellow']}amount{$text_color['reset_color']} results in a model property {$text_color['yellow']}amount{$text_color['reset_color']} and that must be a integer",
+                ":bool:" => "{$text_color['blue']}:bool:{$text_color['reset_color']}{$text_color['yellow']}active{$text_color['reset_color']} results in a model property {$text_color['yellow']}active{$text_color['reset_color']} and that must be a boolean",
+            ];
+
+            $hint = "{$text_color['yellow']}(type '.exit' to stop or '.hints' for help){$text_color['reset_color']}";
+            $navigation = "{$text_color['yellow']}(you can navigate suggestions with up/down arrows){$text_color['reset_color']}";
+            $property_name = $this->anticipate("What is the name of the property? \n$hint", $autoComplete_options);
+
+            if ($property_name == ".exit") {
                 break;
             }
 
-            $db_type = $this->choice("What is property db_type?", self::$_DB_TYPES, self::$_DB_TYPES[0]);
 
-            $html_type = $this->choice("What is the html_type of property", self::$_HTML_TYPES[$db_type], 0);
-
-
-            foreach (self::$_OPTION_TYPES as $key => $value) {
-
-                $this->line("$key - $value");
-
+            if ($property_name == ".hints") {
+                foreach ($autoComplete_options as $option) {
+                    $this->line("==================");
+                    $this->line("  {$text_color['blue']}$option{$text_color['reset_color']}");
+                    if (array_key_exists($option, $hints)) {
+                        $this->line("   => $hints[$option]");
+                    }
+                    $this->line("");
+                }
+                continue;
             }
 
-            $options_selected = $this->choice(
-                'Options? (Mulitiple)',
-                array_keys(self::$_OPTION_TYPES),
-                0,
-                $maxAttempts = null,
-                $allowMultipleSelections = true
-            );
+            $property_name_has_complex_definition = Str::contains($property_name, '-');
+            if ($property_name_has_complex_definition) {
+                $validations .= "|numeric";
+                $property_info = $this->generatePropertyNameAndRelation($property_name);
+                $validations .= $property_info['foreign_validatiator'];
+                $property_name = $property_info['field_name'];
+                $db_type = "foreignId:constrained";
+                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS[$db_type];
+                $relation = $property_info['relation'];
+            }
+
+            $property_name_has_str = Str::contains($property_name, ':str:');
+            if ($property_name_has_str) {
+                $property_name = str_replace(":str:", "", $property_name);
+                $db_type = MigrationGenerator::DB_TYPES['string'];
+                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS["text"]["default"];
+            }
+
+            $property_name_has_int = Str::contains($property_name, ':int:');
+            if ($property_name_has_int) {
+                $validations .= "|numeric";
+                $property_name = str_replace(":int", "", $property_name);
+                $db_type = MigrationGenerator::DB_TYPES["integer"];
+                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS["text"]["default"];
+            }
+
+            $property_name_has_bool = Str::contains($property_name, ':bool:');
+            if ($property_name_has_bool) {
+                $property_name = str_replace(":bool", "", $property_name);
+                $db_type = MigrationGenerator::DB_TYPES["boolean"];//boolean
+                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS["text"]["default"];
+            }
 
 
-            if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+            $previous_property_name = $property_name;
 
-                if ($this->confirm("you cant have NO and Options remove NO ? ", true)) {
 
-                    $options = \Arr::join($options_selected, ",");
-                    $options = str_replace(",NO", "", $options);
-                    $options = str_replace("NO,", "", $options);
-
-                } else {
-                    continue;
-                }
+            if ($property_name_has_complex_definition || $property_name_has_str || $property_name_has_int || $property_name_has_bool) {
 
 
             } else {
-                $options = \Arr::join($options_selected, ",");
-                $options = str_replace("NO", "", $options);
+                $previous_property_name = $property_name;
+
+                foreach (MigrationGenerator::DB_TYPES as $value) {
+                    $this->line("- $value");
+                }
+
+                $db_type = $this->askWithCompletion("What is db_type of {$text_color['yellow']}$property_name{$text_color['reset_color']} ? \n$navigation", MigrationGenerator::DB_TYPES, MigrationGenerator::DB_TYPES['string']);
+
+
+                if (array_key_exists($db_type, GeneratorField::HTML_TYPE_SUGESTIONS)) {
+                    foreach (GeneratorField::HTML_TYPE_SUGESTIONS[$db_type] as $key => $value) {
+                        if ($key !== "default") {
+                            $this->line("- $value");
+                        }
+                    }
+
+                    $html_type = $this->askWithCompletion("     What is the html_type of property \n$navigation", GeneratorField::HTML_TYPE_SUGESTIONS[$db_type], GeneratorField::HTML_TYPE_SUGESTIONS[$db_type]["default"]);
+
+
+                    foreach (GeneratorField::DB_OPTION_TYPES as $key => $value) {
+                        $this->line("$key - $value");
+                    }
+                    $this->line("Example \"2\"  \"2,3\"  \"4,2,1\" ");
+                    $options_selected = $this->choice(
+                        'Options? (Mulitiple)',
+                        array_keys(GeneratorField::DB_OPTION_TYPES),
+                        0,
+                        $maxAttempts = null,
+                        $allowMultipleSelections = true
+                    );
+
+
+                    if (in_array("NO", $options_selected) && count($options_selected) > 1) {
+                        $options = \Arr::join($options_selected, ",");
+                        $options = str_replace(",NO", "", $options);
+                        $options = str_replace("NO,", "", $options);
+                    } else {
+                        $options = \Arr::join($options_selected, ",");
+                        $options = str_replace("NO", "", $options);
+                    }
+                } else {
+                    $html_type = "text";
+                }
             }
 
 
             $fieldInputStr = $property_name . " " . $db_type . " " . $html_type . " " . $options;
 
-            if ($this->confirm("Is this correct? " . $fieldInputStr, true)) {
-
-            } else {
-                continue;
-            }
-
-
-            //$fieldInputStr = $this->ask('Field: (name db_type html_type options)', '');
 
             if (empty($fieldInputStr) || $fieldInputStr == false || $fieldInputStr == 'exit') {
                 break;
@@ -430,15 +494,17 @@ class BaseCommand extends Command
                 continue;
             }
 
-            //@toDO validation
 
-            $validations = $this->ask('Enter validations: ', false);
-            $validations = ($validations == false) ? '' : $validations;
+            if (!isset($validations)) {
 
+                $validations = $this->ask('Enter validations: ', 'required');
+                $validations = ($validations == false) ? '' : $validations;
+            }
             if ($this->option('relations')) {
+
                 $relation = $this->ask('Enter relationship (Leave Blank to skip):', false);
             } else {
-                $relation = '';
+
             }
 
             $this->config->fields[] = GeneratorField::parseFieldFromConsoleInput(
@@ -449,11 +515,63 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
+            $previous_properties .= "\n -  " . $previous_property_name . " " . $db_type . " " . $html_type . " " . $options;
+            $this->info("Previous Properties:" . $previous_properties);
         }
 
         if (config('laravel_generator.timestamps.enabled', true)) {
             $this->addTimestamps();
         }
+
+
+    }
+
+    /**
+     * @param $property_name_raw
+     * @return array|null [$property_name,$relation]
+     */
+    public function generatePropertyNameAndRelation($property_name_raw): ?array
+    {
+        $relationships_map = [
+            ":belongsTo" => "mt1",
+            ":belongsToMany" => "mtm",
+            ":hasMany" => "1tm"
+        ];
+        //converts relationsship type
+        $property_name_array = explode("-", $property_name_raw);
+        $this->info(var_dump($property_name_array));
+        $this->info(json_encode($property_name_array[1]));
+        $relationships_map_key = $property_name_array[0];
+        $property_name = $property_name_array[1];
+
+
+        if (array_key_exists($relationships_map_key, $relationships_map)) {
+            $foreign_validatiator = '';
+            $relationship_type = $relationships_map[$relationships_map_key];
+
+            $field_name = lcfirst($property_name) . "_id";
+
+            $model_name = ucfirst($property_name);
+
+            $relation_array = [$relationship_type, $model_name, $field_name, "id"];
+
+            $relation = \Arr::join($relation_array, ",");
+            if ($relationship_type === $relationships_map[":belongsTo"]) {
+                $foreign_validatiator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
+            }
+
+
+            $outcome = compact('field_name', 'relation', 'foreign_validatiator');
+
+            $this->info(json_encode($outcome));
+
+            return $outcome;
+
+        } else {
+            return null;
+        }
+
+
     }
 
     private function addPrimaryKey()
@@ -597,4 +715,5 @@ class BaseCommand extends Command
     {
         event(new GeneratorFileDeleted($commandType, $this->prepareEventsData()));
     }
+
 }

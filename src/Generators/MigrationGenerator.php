@@ -8,6 +8,14 @@ use SplFileInfo;
 
 class MigrationGenerator extends BaseGenerator
 {
+    public const DB_TYPES= [
+        "string"=>"string",
+        "integer"=>"integer",
+        "boolean"=>"boolean",
+        "text"=>"text",
+        "double"=>"double",
+        "date"=>"date"
+    ];
     public function __construct()
     {
         parent::__construct();
