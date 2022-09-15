@@ -12,15 +12,6 @@ class GeneratorField
     public array $dbTypeParams = [];
     public array $dbExtraFunctions = [];
 
-    public const DB_OPTION_TYPES = [
-        'NO' => "NO Options",
-        's' => 'to make field non - searchable',
-        'f' => 'to make field non - fillable',
-        'if' => 'to skip field from being asked in form',
-        'ii' => 'to skip field from being displayed in index view',
-        "iv" => 'to skip field from being displayed in all views'
-    ];
-
     public string $htmlType = '';
     public array $htmlValues = [];
 

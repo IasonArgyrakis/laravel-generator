@@ -251,6 +251,8 @@ class GeneratorConfig
             $this->tableName = $this->modelNames->snakePlural;
         }
 
+        
+
         if ($this->getOption('primary')) {
             $this->primaryName = $this->getOption('primary');
         } else {

@@ -398,16 +398,16 @@ class BaseCommand extends Command
 
             $property_name_has_complex_definition = Str::contains($property_name, '-');
             try{
-                if ($property_name_has_complex_definition) {
+            if ($property_name_has_complex_definition) {
 
-                    $validations .= "|numeric";
-                    $property_info = $this->generatePropertyNameAndRelation($property_name);
-                    $validations .= $property_info['foreign_validator'];
-                    $property_name = $property_info['field_name'];
-                    $db_type = "foreignId:constrained";
-                    $html_type = GeneratorField::HTML_TYPE_SUGESTIONS[$db_type]["default"];
-                    $relation = $property_info['relation'];
-                }
+                $validations .= "|numeric";
+                $property_info = $this->generatePropertyNameAndRelation($property_name);
+                $validations .= $property_info['foreign_validator'];
+                $property_name = $property_info['field_name'];
+                $db_type = "foreignId:constrained";
+                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS[$db_type]["default"];
+                $relation = $property_info['relation'];
+            }
             }catch (ErrorException $exception){
                 $this->error("property name can NOT be empty ".json_encode($exception));
             }
@@ -436,9 +436,13 @@ class BaseCommand extends Command
 
 
             $previous_property_name = $property_name;
+            if($property_name_has_complex_definition){
+                
+            }
 
 
             if ($property_name_has_complex_definition || $property_name_has_str || $property_name_has_int || $property_name_has_bool) {
+
 
 
             } else {
@@ -521,7 +525,7 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
-            $previous_properties .= "\n {$property_info['relationships_map_key']} -  {$text_color['blue']}" . $previous_property_name . " {$text_color['yellow']}" . $db_type . " " . $html_type . " " . $options."{$text_color['reset_color']}";
+            $previous_properties .= "\n -  {$text_color['blue']}" . $previous_property_name . " {$text_color['yellow']}" . $db_type . " " . $html_type . " " . $options."{$text_color['reset_color']}";
             $this->info("{$text_color['yellow']}Previous Properties:{$text_color['reset_color']}" . $previous_properties);
         }
 
@@ -559,19 +563,23 @@ class BaseCommand extends Command
 
             $model_name = ucfirst($property_name);
 
-            $relation_array = [$relationship_type, $model_name, $field_name, "id"];
+            $relation_array = [$relationship_type, $model_name,$field_name,"id"];
 
-            $relation = \Arr::join($relation_array, ",");
+         
             if ($relationship_type === $relationships_map[":belongsTo"]) {
+                $relation_array = [$relationship_type, $model_name,$field_name,"id"];
                 $foreign_validator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
             }
             if ($relationship_type === $relationships_map[":hasOne"]) {
+                $relation_array = [$relationship_type, $model_name,$field_name,"id"];
                 $foreign_validator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
             }
+            $relation = \Arr::join($relation_array, ",");
 
 
 
             $outcome = compact('field_name', 'relation', 'foreign_validator',"relationships_map_key");
+
             return $outcome;
 
         } else {
