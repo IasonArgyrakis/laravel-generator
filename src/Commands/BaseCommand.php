@@ -30,6 +30,7 @@ use InfyOm\Generator\Generators\Scaffold\ViewGenerator;
 use InfyOm\Generator\Generators\SeederGenerator;
 use InfyOm\Generator\Utils\GeneratorFieldsInputUtil;
 use InfyOm\Generator\Utils\TableFieldsGenerator;
+use Mockery\Exception;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\VarExporter\VarExporter;
@@ -396,14 +397,19 @@ class BaseCommand extends Command
             }
 
             $property_name_has_complex_definition = Str::contains($property_name, '-');
-            if ($property_name_has_complex_definition) {
-                $validations .= "|numeric";
-                $property_info = $this->generatePropertyNameAndRelation($property_name);
-                $validations .= $property_info['foreign_validatiator'];
-                $property_name = $property_info['field_name'];
-                $db_type = "foreignId:constrained";
-                $html_type = GeneratorField::HTML_TYPE_SUGESTIONS[$db_type];
-                $relation = $property_info['relation'];
+            try{
+                if ($property_name_has_complex_definition) {
+
+                    $validations .= "|numeric";
+                    $property_info = $this->generatePropertyNameAndRelation($property_name);
+                    $validations .= $property_info['foreign_validator'];
+                    $property_name = $property_info['field_name'];
+                    $db_type = "foreignId:constrained";
+                    $html_type = GeneratorField::HTML_TYPE_SUGESTIONS[$db_type]["default"];
+                    $relation = $property_info['relation'];
+                }
+            }catch (ErrorException $exception){
+                $this->error("property name can NOT be empty ".json_encode($exception));
             }
 
             $property_name_has_str = Str::contains($property_name, ':str:');
@@ -515,8 +521,8 @@ class BaseCommand extends Command
             if (!empty($relation)) {
                 $this->config->relations[] = GeneratorFieldRelation::parseRelation($relation);
             }
-            $previous_properties .= "\n -  " . $previous_property_name . " " . $db_type . " " . $html_type . " " . $options;
-            $this->info("Previous Properties:" . $previous_properties);
+            $previous_properties .= "\n {$property_info['relationships_map_key']} -  {$text_color['blue']}" . $previous_property_name . " {$text_color['yellow']}" . $db_type . " " . $html_type . " " . $options."{$text_color['reset_color']}";
+            $this->info("{$text_color['yellow']}Previous Properties:{$text_color['reset_color']}" . $previous_properties);
         }
 
         if (config('laravel_generator.timestamps.enabled', true)) {
@@ -535,18 +541,18 @@ class BaseCommand extends Command
         $relationships_map = [
             ":belongsTo" => "mt1",
             ":belongsToMany" => "mtm",
-            ":hasMany" => "1tm"
+            ":hasOne" => "1t1",
+            ":hasMany" => "1tm",
+
         ];
         //converts relationsship type
         $property_name_array = explode("-", $property_name_raw);
-        $this->info(var_dump($property_name_array));
-        $this->info(json_encode($property_name_array[1]));
         $relationships_map_key = $property_name_array[0];
         $property_name = $property_name_array[1];
 
 
         if (array_key_exists($relationships_map_key, $relationships_map)) {
-            $foreign_validatiator = '';
+            $foreign_validator = '';
             $relationship_type = $relationships_map[$relationships_map_key];
 
             $field_name = lcfirst($property_name) . "_id";
@@ -557,14 +563,15 @@ class BaseCommand extends Command
 
             $relation = \Arr::join($relation_array, ",");
             if ($relationship_type === $relationships_map[":belongsTo"]) {
-                $foreign_validatiator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
+                $foreign_validator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
+            }
+            if ($relationship_type === $relationships_map[":hasOne"]) {
+                $foreign_validator = "|exists:" . Str::plural(strtolower($model_name)) . ",id";
             }
 
 
-            $outcome = compact('field_name', 'relation', 'foreign_validatiator');
 
-            $this->info(json_encode($outcome));
-
+            $outcome = compact('field_name', 'relation', 'foreign_validator',"relationships_map_key");
             return $outcome;
 
         } else {
